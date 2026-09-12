@@ -111,6 +111,86 @@
           hidden
         ></section>
       </section>
+
+      <section class="job-scout" aria-labelledby="job-scout-title">
+        <div class="section-heading">
+          <div>
+            <p class="section-number">04 / MULTI-SOURCE COMPARISON</p>
+            <h2 id="job-scout-title">Junior Job Scout</h2>
+          </div>
+          <p class="section-note">1–5 PUBLIC JOB PAGES</p>
+        </div>
+
+        <p class="job-scout-intro">
+          Paste up to 5 public job-listing pages. We will compare visible roles and
+          surface promising early-career opportunities.
+        </p>
+
+        <form class="job-scout-form" id="job-scout-form" novalidate>
+          <div class="job-source-list">
+            <div class="job-source-row">
+              <label class="job-source-label" for="job-source-1">Job Source 1 URL <strong>Required</strong></label>
+              <input
+                class="job-source-input"
+                id="job-source-1"
+                name="job-source-1"
+                type="url"
+                placeholder="https://public-jobs.example/search"
+                autocomplete="url"
+                required
+              />
+              <span class="source-status" data-source-status="0">Waiting</span>
+            </div>
+            <div class="job-source-row">
+              <label class="job-source-label" for="job-source-2">Job Source 2 URL</label>
+              <input class="job-source-input" id="job-source-2" name="job-source-2" type="url" autocomplete="url" />
+              <span class="source-status" data-source-status="1">Waiting</span>
+            </div>
+            <div class="job-source-row">
+              <label class="job-source-label" for="job-source-3">Job Source 3 URL</label>
+              <input class="job-source-input" id="job-source-3" name="job-source-3" type="url" autocomplete="url" />
+              <span class="source-status" data-source-status="2">Waiting</span>
+            </div>
+            <div class="job-source-row">
+              <label class="job-source-label" for="job-source-4">Job Source 4 URL</label>
+              <input class="job-source-input" id="job-source-4" name="job-source-4" type="url" autocomplete="url" />
+              <span class="source-status" data-source-status="3">Waiting</span>
+            </div>
+            <div class="job-source-row">
+              <label class="job-source-label" for="job-source-5">Job Source 5 URL</label>
+              <input class="job-source-input" id="job-source-5" name="job-source-5" type="url" autocomplete="url" />
+              <span class="source-status" data-source-status="4">Waiting</span>
+            </div>
+          </div>
+
+          <div class="job-scout-actions">
+            <button class="primary-button" id="scan-jobs" type="submit">
+              <span>Find Junior Opportunities</span>
+              <span aria-hidden="true">↗</span>
+            </button>
+            <button class="secondary-button" id="clear-job-results" type="button">
+              Clear Results
+            </button>
+          </div>
+        </form>
+
+        <p class="job-scout-status" id="job-scout-status" role="status" aria-live="polite">
+          Add at least one public job-listing page to begin.
+        </p>
+
+        <section
+          class="job-results"
+          id="job-results"
+          aria-labelledby="job-results-title"
+          aria-live="polite"
+          tabindex="-1"
+          hidden
+        >
+          <p class="panel-label">RANKED EARLY-CAREER VIEW</p>
+          <h3 id="job-results-title">Top 5 Junior Opportunities</h3>
+          <div class="job-result-list" id="job-result-list"></div>
+        </section>
+      </section>
     </main>
 
     <footer>
