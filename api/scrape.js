@@ -30,7 +30,7 @@ export default {
     const apiKey = process.env.FIRECRAWL_API_KEY;
     if (!apiKey) {
       return jsonResponse(
-        { error: "Deep Read is not configured yet. Add FIRECRAWL_API_KEY on the server." },
+        { error: "Page retrieval is not configured yet. Add FIRECRAWL_API_KEY on the server." },
         503,
       );
     }
@@ -76,8 +76,8 @@ export default {
     } catch (error) {
       const message =
         error?.name === "AbortError"
-          ? "Deep Read timed out. Please try again."
-          : "Deep Read could not reach Firecrawl. Please try again.";
+          ? "Page retrieval timed out. Please try again."
+          : "Page retrieval could not reach Firecrawl. Please try again.";
       return jsonResponse({ error: message }, 502);
     } finally {
       clearTimeout(timer);
@@ -106,9 +106,9 @@ function validateWebUrl(value) {
 }
 
 function readableFirecrawlError(status, detail) {
-  if (status === 401 || status === 403) return "Deep Read is not authorized on the server.";
+  if (status === 401 || status === 403) return "Page retrieval is not authorized on the server.";
   if (status === 402) return "The Firecrawl account has no available credits.";
-  if (status === 429) return "Deep Read is busy or rate limited. Please try again shortly.";
+  if (status === 429) return "Page retrieval is busy or rate limited. Please try again shortly.";
   if (status === 400) return limitText(detail || "Firecrawl rejected this webpage URL.", 240);
   return "Firecrawl could not retrieve this page. Please try again.";
 }

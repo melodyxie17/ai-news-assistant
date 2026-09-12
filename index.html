@@ -71,6 +71,46 @@
 
         <div class="article-grid" id="article-list" aria-live="polite"></div>
       </section>
+
+      <section class="web-explorer" aria-labelledby="web-explorer-title">
+        <div class="section-heading">
+          <div>
+            <p class="section-number">03 / DIRECT RETRIEVAL</p>
+            <h2 id="web-explorer-title">Explore Any Web Page</h2>
+          </div>
+          <p class="section-note">ONE PUBLIC PAGE · ONE SCRAPE</p>
+        </div>
+
+        <form class="explorer-form" id="web-explorer-form" novalidate>
+          <label class="url-field" for="web-page-url">
+            <span>Public webpage URL</span>
+            <input
+              id="web-page-url"
+              name="url"
+              type="url"
+              placeholder="https://example.com/article"
+              autocomplete="url"
+            />
+          </label>
+          <button class="primary-button" id="scrape-page" type="submit">
+            <span>Scrape Page</span>
+            <span aria-hidden="true">↗</span>
+          </button>
+        </form>
+
+        <p class="explorer-status" id="web-explorer-status" role="status" aria-live="polite">
+          Enter one public webpage URL to retrieve its readable content.
+        </p>
+
+        <section
+          class="explorer-result"
+          id="web-explorer-result"
+          aria-labelledby="web-explorer-result-title"
+          aria-live="polite"
+          tabindex="-1"
+          hidden
+        ></section>
+      </section>
     </main>
 
     <footer>

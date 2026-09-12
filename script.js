@@ -4,6 +4,11 @@ const statusElement = document.querySelector("#news-status");
 const articleList = document.querySelector("#article-list");
 const deepReadPanel = document.querySelector("#deep-read-panel");
 const deepReadContent = document.querySelector("#deep-read-content");
+const webExplorerForm = document.querySelector("#web-explorer-form");
+const webPageUrlInput = document.querySelector("#web-page-url");
+const scrapePageButton = document.querySelector("#scrape-page");
+const webExplorerStatus = document.querySelector("#web-explorer-status");
+const webExplorerResult = document.querySelector("#web-explorer-result");
 
 let loadedArticles = [];
 
@@ -15,6 +20,7 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, {
 
 loadButton.addEventListener("click", loadNews);
 filterInput.addEventListener("input", renderFilteredArticles);
+webExplorerForm.addEventListener("submit", runWebExplorer);
 
 async function loadNews() {
   setLoadState(true);
@@ -218,6 +224,116 @@ function showDeepReadError(article, message) {
   deepReadContent.append(title, errorMessage, link);
 }
 
+async function runWebExplorer(event) {
+  event.preventDefault();
+  const url = webPageUrlInput.value.trim();
+
+  if (!url) {
+    showWebExplorerError("Enter a webpage URL before scraping.");
+    webPageUrlInput.focus();
+    return;
+  }
+
+  setWebExplorerLoading(true);
+  showWebExplorerLoading(url);
+
+  try {
+    const response = await fetch("/api/scrape", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url }),
+    });
+    const result = await readJson(response);
+
+    if (!response.ok) {
+      throw new Error(result.error || "This webpage could not be retrieved.");
+    }
+
+    showWebExplorerResult(result);
+  } catch (error) {
+    showWebExplorerError(
+      `${error.message || "This webpage could not be retrieved."} Please check the URL and try again.`,
+    );
+  } finally {
+    setWebExplorerLoading(false);
+  }
+}
+
+function showWebExplorerLoading(url) {
+  webExplorerResult.hidden = false;
+  webExplorerResult.replaceChildren();
+
+  const title = document.createElement("h3");
+  title.id = "web-explorer-result-title";
+  title.textContent = "Retrieving webpage…";
+
+  const source = document.createElement("p");
+  source.className = "panel-source";
+  source.textContent = url;
+
+  webExplorerResult.append(title, source);
+  setWebExplorerStatus("Firecrawl is retrieving this one public page.");
+}
+
+function showWebExplorerResult(result) {
+  webExplorerResult.hidden = false;
+  webExplorerResult.replaceChildren();
+
+  const title = document.createElement("h3");
+  title.id = "web-explorer-result-title";
+  title.textContent = result.title || result.domain || "Retrieved webpage";
+
+  const domain = document.createElement("p");
+  domain.className = "panel-source";
+  domain.textContent = result.domain || "Web page";
+
+  const url = document.createElement("a");
+  url.className = "result-url";
+  url.href = result.url;
+  url.target = "_blank";
+  url.rel = "noopener noreferrer";
+  url.textContent = result.url;
+
+  const description = document.createElement("p");
+  description.className = "result-description";
+  description.textContent = result.description || "No metadata description was available.";
+
+  const content = document.createElement("pre");
+  content.className = "panel-content";
+  content.textContent = result.content || "No readable page content was returned.";
+
+  const originalLink = document.createElement("a");
+  originalLink.className = "panel-link";
+  originalLink.href = result.url;
+  originalLink.target = "_blank";
+  originalLink.rel = "noopener noreferrer";
+  originalLink.textContent = "Open Original Page ↗";
+
+  webExplorerResult.append(title, domain, url, description, content, originalLink);
+  setWebExplorerStatus("Webpage retrieved successfully.");
+  webExplorerResult.focus({ preventScroll: true });
+}
+
+function showWebExplorerError(message) {
+  webExplorerResult.hidden = false;
+  webExplorerResult.replaceChildren();
+
+  const title = document.createElement("h3");
+  title.id = "web-explorer-result-title";
+  title.textContent = "Webpage could not be retrieved";
+
+  const errorMessage = document.createElement("p");
+  errorMessage.className = "panel-source";
+  errorMessage.textContent = message;
+
+  webExplorerResult.append(title, errorMessage);
+  setWebExplorerStatus(message, true);
+  webExplorerResult.focus({ preventScroll: true });
+}
+
 function setLoadState(isLoading) {
   loadButton.disabled = isLoading;
   loadButton.querySelector("span").textContent = isLoading
@@ -229,6 +345,19 @@ function setDeepReadButtonsDisabled(isDisabled) {
   document.querySelectorAll(".deep-read-button").forEach((button) => {
     button.disabled = isDisabled;
   });
+}
+
+function setWebExplorerLoading(isLoading) {
+  scrapePageButton.disabled = isLoading;
+  webPageUrlInput.disabled = isLoading;
+  scrapePageButton.querySelector("span").textContent = isLoading
+    ? "Scraping Page…"
+    : "Scrape Page";
+}
+
+function setWebExplorerStatus(message, isError = false) {
+  webExplorerStatus.textContent = message;
+  webExplorerStatus.classList.toggle("is-error", isError);
 }
 
 function setStatus(message, isError = false) {
