@@ -1,0 +1,16 @@
+{
+  "name": "ai-news-assistant",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check script.js && node --check api/news.js && node --check api/scrape.js"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^5.11.1"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@11.19.0"
+}
