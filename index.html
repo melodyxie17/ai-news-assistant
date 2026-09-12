@@ -78,7 +78,7 @@
             <p class="section-number">03 / DIRECT RETRIEVAL</p>
             <h2 id="web-explorer-title">Explore Any Web Page</h2>
           </div>
-          <p class="section-note">ONE PUBLIC PAGE · ONE SCRAPE</p>
+          <p class="section-note">ONE PUBLIC STARTING URL · CONTROLLED DEPTH</p>
         </div>
 
         <form class="explorer-form" id="web-explorer-form" novalidate>
@@ -92,14 +92,28 @@
               autocomplete="url"
             />
           </label>
+          <label class="depth-field" for="explore-depth">
+            <span>Explore Depth</span>
+            <select id="explore-depth" name="depth" aria-describedby="depth-help">
+              <option value="0">0 — This page only</option>
+              <option value="1">1 — This page + links on it</option>
+              <option value="2">2 — Two link levels</option>
+              <option value="3">3 — Three link levels</option>
+            </select>
+          </label>
           <button class="primary-button" id="scrape-page" type="submit">
-            <span>Scrape Page</span>
+            <span>Explore Site</span>
             <span aria-hidden="true">↗</span>
           </button>
         </form>
 
+        <p class="depth-help" id="depth-help">
+          Depth is how many rounds of internal links the crawler is allowed to follow.
+          Every crawl stops after 25 pages.
+        </p>
+
         <p class="explorer-status" id="web-explorer-status" role="status" aria-live="polite">
-          Enter one public webpage URL to retrieve its readable content.
+          Enter one public URL and choose how far to explore.
         </p>
 
         <section
@@ -195,7 +209,7 @@
 
     <footer>
       <p><strong>RSS</strong> discovers what changed.</p>
-      <p><strong>Firecrawl</strong> retrieves a selected webpage.</p>
+      <p><strong>Firecrawl</strong> explores selected pages within your chosen depth.</p>
     </footer>
   </body>
 </html>

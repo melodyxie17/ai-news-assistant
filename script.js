@@ -6,6 +6,7 @@ const deepReadPanel = document.querySelector("#deep-read-panel");
 const deepReadContent = document.querySelector("#deep-read-content");
 const webExplorerForm = document.querySelector("#web-explorer-form");
 const webPageUrlInput = document.querySelector("#web-page-url");
+const exploreDepthSelect = document.querySelector("#explore-depth");
 const scrapePageButton = document.querySelector("#scrape-page");
 const webExplorerStatus = document.querySelector("#web-explorer-status");
 const webExplorerResult = document.querySelector("#web-explorer-result");
@@ -19,6 +20,8 @@ const jobResults = document.querySelector("#job-results");
 const jobResultList = document.querySelector("#job-result-list");
 
 let loadedArticles = [];
+const MAX_CRAWL_POLLS = 90;
+const CRAWL_POLL_DELAY_MS = 2_000;
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   year: "numeric",
@@ -237,55 +240,103 @@ function showDeepReadError(article, message) {
 async function runWebExplorer(event) {
   event.preventDefault();
   const url = webPageUrlInput.value.trim();
+  const depth = Number(exploreDepthSelect.value);
 
   if (!url) {
-    showWebExplorerError("Enter a webpage URL before scraping.");
+    showWebExplorerError("Enter a webpage URL before exploring.");
     webPageUrlInput.focus();
     return;
   }
 
-  setWebExplorerLoading(true);
-  showWebExplorerLoading(url);
+  setWebExplorerLoading(true, depth);
+  showWebExplorerLoading(url, depth);
 
   try {
-    const response = await fetch("/api/scrape", {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ url }),
-    });
-    const result = await readJson(response);
+    if (depth === 0) {
+      const response = await fetch("/api/scrape", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url }),
+      });
+      const result = await readJson(response);
 
-    if (!response.ok) {
-      throw new Error(result.error || "This webpage could not be retrieved.");
+      if (!response.ok) {
+        throw new Error(result.error || "This webpage could not be retrieved.");
+      }
+
+      showWebExplorerResult(result);
+    } else {
+      await runSiteCrawl(url, depth);
     }
-
-    showWebExplorerResult(result);
   } catch (error) {
     showWebExplorerError(
-      `${error.message || "This webpage could not be retrieved."} Please check the URL and try again.`,
+      `${error.message || "This website could not be explored."} Please check the URL and try again.`,
     );
   } finally {
-    setWebExplorerLoading(false);
+    setWebExplorerLoading(false, depth);
   }
 }
 
-function showWebExplorerLoading(url) {
+async function runSiteCrawl(url, depth) {
+  const startResponse = await fetch("/api/crawl", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ url, depth }),
+  });
+  const started = await readJson(startResponse);
+  if (!startResponse.ok || !started.id) {
+    throw new Error(started.error || "The crawl could not be started.");
+  }
+
+  setWebExplorerStatus("Exploring site… 0 pages retrieved.");
+
+  for (let attempt = 0; attempt < MAX_CRAWL_POLLS; attempt += 1) {
+    if (attempt > 0) await delay(CRAWL_POLL_DELAY_MS);
+
+    const statusResponse = await fetch(
+      `/api/crawl/status?id=${encodeURIComponent(started.id)}`,
+      { headers: { Accept: "application/json" } },
+    );
+    const result = await readJson(statusResponse);
+    if (!statusResponse.ok) {
+      throw new Error(result.error || "Crawl progress could not be checked.");
+    }
+    if (result.status === "failed") {
+      throw new Error(result.error || "This site could not be cleanly crawled.");
+    }
+
+    showCrawlProgress(result);
+    if (result.status === "completed") {
+      showCrawlResult({ ...result, startingUrl: started.url || url, depth });
+      return;
+    }
+  }
+
+  throw new Error("This crawl is taking longer than expected. Please try a smaller site.");
+}
+
+function showWebExplorerLoading(url, depth) {
   webExplorerResult.hidden = false;
   webExplorerResult.replaceChildren();
 
   const title = document.createElement("h3");
   title.id = "web-explorer-result-title";
-  title.textContent = "Retrieving webpage…";
+  title.textContent = depth === 0 ? "Reading page…" : "Starting crawl…";
 
   const source = document.createElement("p");
   source.className = "panel-source";
   source.textContent = url;
 
   webExplorerResult.append(title, source);
-  setWebExplorerStatus("Firecrawl is retrieving this one public page.");
+  setWebExplorerStatus(
+    depth === 0 ? "Reading page…" : `Starting a depth ${depth} crawl with a 25-page limit…`,
+  );
 }
 
 function showWebExplorerResult(result) {
@@ -327,13 +378,91 @@ function showWebExplorerResult(result) {
   webExplorerResult.focus({ preventScroll: true });
 }
 
+function showCrawlProgress(result) {
+  const count = Number(result.pagesRetrieved) || 0;
+  setWebExplorerStatus(`Exploring site… ${count} ${count === 1 ? "page" : "pages"} retrieved.`);
+}
+
+function showCrawlResult(result) {
+  webExplorerResult.hidden = false;
+  webExplorerResult.replaceChildren();
+
+  const title = document.createElement("h3");
+  title.id = "web-explorer-result-title";
+  title.textContent = "Site Exploration Result";
+
+  const summary = document.createElement("dl");
+  summary.className = "crawl-summary";
+  appendCrawlSummary(summary, "Starting URL", result.startingUrl);
+  appendCrawlSummary(summary, "Selected depth", String(result.depth));
+  appendCrawlSummary(summary, "Pages retrieved", String(result.pagesRetrieved || 0));
+  appendCrawlSummary(summary, "Page cap", result.capReached ? "Reached (25 pages)" : "Not reached");
+
+  const pages = document.createElement("div");
+  pages.className = "crawl-page-list";
+  const crawlPages = Array.isArray(result.pages) ? result.pages.slice(0, 25) : [];
+
+  if (crawlPages.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "crawl-empty";
+    empty.textContent = "The crawl completed without readable page excerpts.";
+    pages.append(empty);
+  } else {
+    crawlPages.forEach((page) => pages.append(createCrawlPageCard(page)));
+  }
+
+  webExplorerResult.append(title, summary, pages);
+  setWebExplorerStatus(
+    result.capReached
+      ? "Stopped at the 25-page classroom limit."
+      : `Completed: ${result.pagesRetrieved || 0} ${result.pagesRetrieved === 1 ? "page" : "pages"}.`,
+  );
+  webExplorerResult.focus({ preventScroll: true });
+}
+
+function appendCrawlSummary(list, label, value) {
+  const wrapper = document.createElement("div");
+  const term = document.createElement("dt");
+  const detail = document.createElement("dd");
+  term.textContent = label;
+  detail.textContent = value;
+  wrapper.append(term, detail);
+  list.append(wrapper);
+}
+
+function createCrawlPageCard(page) {
+  const card = document.createElement("article");
+  card.className = "crawl-page-card";
+
+  const title = document.createElement("h4");
+  title.textContent = page.title || "Untitled page";
+
+  const url = document.createElement("p");
+  url.className = "crawl-page-url";
+  url.textContent = page.url;
+
+  const excerpt = document.createElement("p");
+  excerpt.className = "crawl-excerpt";
+  excerpt.textContent = page.excerpt || "No readable excerpt was returned for this page.";
+
+  const link = document.createElement("a");
+  link.className = "crawl-page-link";
+  link.href = page.url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.textContent = "Open Page ↗";
+
+  card.append(title, url, excerpt, link);
+  return card;
+}
+
 function showWebExplorerError(message) {
   webExplorerResult.hidden = false;
   webExplorerResult.replaceChildren();
 
   const title = document.createElement("h3");
   title.id = "web-explorer-result-title";
-  title.textContent = "Webpage could not be retrieved";
+  title.textContent = "Website could not be explored";
 
   const errorMessage = document.createElement("p");
   errorMessage.className = "panel-source";
@@ -594,17 +723,24 @@ function setDeepReadButtonsDisabled(isDisabled) {
   });
 }
 
-function setWebExplorerLoading(isLoading) {
+function setWebExplorerLoading(isLoading, depth) {
   scrapePageButton.disabled = isLoading;
   webPageUrlInput.disabled = isLoading;
+  exploreDepthSelect.disabled = isLoading;
   scrapePageButton.querySelector("span").textContent = isLoading
-    ? "Scraping Page…"
-    : "Scrape Page";
+    ? depth === 0
+      ? "Reading Page…"
+      : "Exploring Site…"
+    : "Explore Site";
 }
 
 function setWebExplorerStatus(message, isError = false) {
   webExplorerStatus.textContent = message;
   webExplorerStatus.classList.toggle("is-error", isError);
+}
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function setStatus(message, isError = false) {

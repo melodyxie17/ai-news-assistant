@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check script.js && node --check api/news.js && node --check api/scrape.js && node --check api/jobs/scan.js"
+    "check": "node --check script.js && node --check api/news.js && node --check api/scrape.js && node --check api/jobs/scan.js && node --check api/crawl/index.js && node --check api/crawl/status.js"
   },
   "dependencies": {
     "fast-xml-parser": "^5.11.1"
