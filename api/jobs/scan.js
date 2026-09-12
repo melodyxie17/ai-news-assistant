@@ -6,7 +6,7 @@ const SCRAPE_TIMEOUT_MS = 45_000;
 
 export const config = { maxDuration: 60 };
 
-const EXTRACTION_PROMPT = `Extract up to 8 job opportunities visibly listed on this exact page. Focus on actual job postings, not navigation or promotional content. For each job return title, employer, location, direct job URL if visible, date, employment type, a short factual description, evidence that it is junior, graduate, entry-level, trainee, internship, assistant, associate, coordinator, analyst, 0–2 years experience, or no prior experience required; transferable skills; future-relevant technology, digital, data, policy, or innovation signals; learning or training signals; and any evidence that the role is actually senior. Do not infer unsupported facts. Use empty strings or arrays when evidence is unavailable.`;
+const EXTRACTION_PROMPT = `Extract up to 8 job opportunities visibly listed on this exact page. Focus on actual job postings, not navigation or promotional content. Copy each job title and employer exactly as shown. Return a direct job URL only when that link is visible on the page. For each evidence array, copy short verbatim phrases from the visible listing; do not paraphrase. Include evidence that a role is junior, graduate, entry-level, trainee, internship, assistant, associate, coordinator, analyst, 0–2 years experience, or no prior experience required; transferable skills; future-relevant technology, digital, data, policy, or innovation signals; learning or training signals; and any evidence that the role is actually senior. Do not infer unsupported facts or create example jobs. Use empty strings or arrays when evidence is unavailable.`;
 
 const JOBS_SCHEMA = {
   type: "object",
@@ -154,7 +154,7 @@ async function scanSource(sourceUrl, apiKey) {
       },
       body: JSON.stringify({
         url: sourceUrl,
-        formats: [{ type: "json", schema: JOBS_SCHEMA, prompt: EXTRACTION_PROMPT }],
+        formats: ["markdown", { type: "json", schema: JOBS_SCHEMA, prompt: EXTRACTION_PROMPT }],
         onlyMainContent: true,
         maxAge: 172_800_000,
         blockAds: true,
@@ -175,11 +175,12 @@ async function scanSource(sourceUrl, apiKey) {
     }
 
     const extracted = result?.data?.json ?? result?.json ?? {};
+    const sourceContent = String(result?.data?.markdown ?? result?.markdown ?? "");
     const rawJobs = Array.isArray(extracted?.jobs) ? extracted.jobs : [];
     const jobs = rawJobs
       .slice(0, MAX_JOBS_PER_SOURCE)
-      .map((job) => normalizeJob(job, sourceUrl))
-      .filter((job) => job.title);
+      .map((job) => normalizeJob(job, sourceUrl, sourceContent))
+      .filter(Boolean);
 
     return jobs.length > 0
       ? {
@@ -189,7 +190,15 @@ async function scanSource(sourceUrl, apiKey) {
           message: `Extracted ${jobs.length} visible ${jobs.length === 1 ? "job" : "jobs"}.`,
           jobs,
         }
-      : {
+      : rawJobs.length > 0
+        ? {
+            ...base,
+            status: "failed",
+            jobCount: 0,
+            message: "This page could not be cleanly extracted. Try another public job page.",
+            jobs: [],
+          }
+        : {
           ...base,
           status: "no_jobs",
           jobCount: 0,
@@ -296,23 +305,47 @@ function isPrivateHostname(value) {
   return false;
 }
 
-function normalizeJob(value, sourceUrl) {
+function normalizeJob(value, sourceUrl, sourceContent) {
   const job = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const title = limitText(job.title, 180);
+  const employer = limitText(job.employer, 160);
+  if (!title || !isSupportedPhrase(title, sourceContent)) return null;
+  if (employer && !isSupportedPhrase(employer, sourceContent)) return null;
+
+  const rawJobUrl = limitText(job.jobUrl, 2_048);
   return {
-    title: limitText(job.title, 180),
-    employer: limitText(job.employer, 160),
+    title,
+    employer,
     location: limitText(job.location, 160),
-    jobUrl: normalizeJobUrl(job.jobUrl, sourceUrl),
+    jobUrl:
+      !rawJobUrl || isSupportedUrl(rawJobUrl, sourceUrl, sourceContent)
+        ? normalizeJobUrl(rawJobUrl, sourceUrl)
+        : "",
     postedDate: limitText(job.postedDate, 100),
     employmentType: limitText(job.employmentType, 100),
     description: limitText(job.description, 600),
-    juniorEvidence: normalizeStringArray(job.juniorEvidence, 4),
-    transferableSkills: normalizeStringArray(job.transferableSkills, 6),
-    futureRelevantSignals: normalizeStringArray(job.futureRelevantSignals, 5),
-    learningSignals: normalizeStringArray(job.learningSignals, 5),
-    seniorityWarnings: normalizeStringArray(job.seniorityWarnings, 4),
+    juniorEvidence: normalizeEvidence(job.juniorEvidence, 4, sourceContent),
+    transferableSkills: normalizeEvidence(job.transferableSkills, 6, sourceContent),
+    futureRelevantSignals: normalizeEvidence(job.futureRelevantSignals, 5, sourceContent),
+    learningSignals: normalizeEvidence(job.learningSignals, 5, sourceContent),
+    seniorityWarnings: normalizeEvidence(job.seniorityWarnings, 4, sourceContent),
     sourceDomain: stripWww(new URL(sourceUrl).hostname),
   };
+}
+
+function isSupportedUrl(value, sourceUrl, sourceContent) {
+  try {
+    const absolute = new URL(value.trim(), sourceUrl).toString();
+    if (absolute === sourceUrl) return true;
+    const parsed = new URL(absolute);
+    return (
+      sourceContent.includes(value.trim()) ||
+      sourceContent.includes(absolute) ||
+      sourceContent.includes(`${parsed.pathname}${parsed.search}`)
+    );
+  } catch {
+    return false;
+  }
 }
 
 function normalizeJobUrl(value, sourceUrl) {
@@ -404,6 +437,24 @@ function joinEvidence(values) {
 function normalizeStringArray(value, limit) {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.map((item) => limitText(item, 180)).filter(Boolean))].slice(0, limit);
+}
+
+function normalizeEvidence(value, limit, sourceContent) {
+  return normalizeStringArray(value, limit).filter((item) => isSupportedPhrase(item, sourceContent));
+}
+
+function isSupportedPhrase(value, sourceContent) {
+  const phrase = normalizeComparable(value);
+  const content = normalizeComparable(sourceContent);
+  return Boolean(phrase) && content.includes(phrase);
+}
+
+function normalizeComparable(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function readableSourceError(status) {
